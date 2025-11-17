@@ -1,6 +1,11 @@
 import os
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, EmailStr
+from typing import Optional
+
+from database import create_document
+from schemas import Contactsubmission
 
 app = FastAPI()
 
@@ -63,6 +68,58 @@ def test_database():
     response["database_name"] = "✅ Set" if os.getenv("DATABASE_NAME") else "❌ Not Set"
     
     return response
+
+# Public content endpoints (static data for the site)
+@app.get("/api/services")
+def get_services():
+    return {
+        "services": [
+            {
+                "title": "General Contracting",
+                "description": "Full-service project management from planning to delivery.",
+                "icon": "Hammer"
+            },
+            {
+                "title": "Renovations",
+                "description": "Residential and commercial renovations with modern finishes.",
+                "icon": "Building"
+            },
+            {
+                "title": "Electrical & Plumbing",
+                "description": "Licensed specialists for safe, code-compliant installs.",
+                "icon": "Wrench"
+            },
+            {
+                "title": "Custom Fabrication",
+                "description": "Custom carpentry, metal, and specialty builds.",
+                "icon": "Saw"
+            }
+        ]
+    }
+
+# Contact form model and endpoint
+class ContactIn(BaseModel):
+    name: str
+    email: EmailStr
+    phone: Optional[str] = None
+    subject: Optional[str] = None
+    message: str
+
+@app.post("/api/contact")
+def submit_contact(payload: ContactIn):
+    try:
+        # Convert to schema model for validation and consistent collection naming
+        doc = Contactsubmission(
+            name=payload.name,
+            email=payload.email,
+            phone=payload.phone,
+            subject=payload.subject,
+            message=payload.message,
+        )
+        inserted_id = create_document("contactsubmission", doc)
+        return {"status": "ok", "id": inserted_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 if __name__ == "__main__":
